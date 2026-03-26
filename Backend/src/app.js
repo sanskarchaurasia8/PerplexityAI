@@ -12,18 +12,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
+
+// 🔥 UPDATED CORS (IMPORTANT CHANGE)
 app.use(cors({
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:5177", "http://localhost:5178", "http://localhost:5179", "http://localhost:5180", "http://localhost:5181", "http://localhost:5182", "http://localhost:5183"],
+    origin: [
+        "http://localhost:5173",
+        "https://perplexity-ai-kappa.vercel.app" // 🔥 VERCEL FRONTEND
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
-
 
 // Health check
 app.get("/", (req, res) => {
     res.json({ message: "Server is running" });
 });
 
+// Routes
 app.use("/api/auth", authRouter);
 app.use("/api/chats", chatRouter);
 
