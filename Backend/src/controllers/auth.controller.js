@@ -1,46 +1,24 @@
 import userModel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
-import { sendEmail } from "../services/mail.service.js";
 
+
+// ================= REGISTER =================
 export async function register(req, res) {
 
     const { username, email, password } = req.body;
 
-    const isUserAlreadyExists = await userModel.findOne({
-        $or: [{ email }, { username }]
-    });
+    // ✅ ONLY EMAIL UNIQUE (username duplicate allowed)
+    const isUserAlreadyExists = await userModel.findOne({ email });
 
     if (isUserAlreadyExists) {
         return res.status(400).json({
-            message: "User with this email or username already exists",
-            success: false,
-            err: "User already exists"
+            message: "Email already exists",
+            success: false
         });
     }
 
-    const user = await userModel.create({ username, email, password, verified: false });
-
-    const emailVerificationToken = jwt.sign({
-        email: user.email,
-    }, process.env.JWT_SECRET, { expiresIn: '1d' });
-
-    try {
-        await sendEmail({
-            to: email,
-            subject: "Welcome to Perplexity!",
-            html: `
-                <p>Hi ${username},</p>
-                <p>Thank you for registering at <strong>Perplexity</strong>.</p>
-                <p>Please verify your email:</p>
-
-                <!-- 🔥 CHANGE 1: localhost → production URL -->
-                <a href="https://perplexityai-3rlb.onrender.com/api/auth/verify-email?token=${emailVerificationToken}">
-                Verify Email</a>
-            `
-        });
-    } catch (err) {
-        console.warn("Email send failed:", err.message || err);
-    }
+    // ✅ NO EMAIL VERIFICATION
+    const user = await userModel.create({ username, email, password });
 
     res.status(201).json({
         message: "User registered successfully",
@@ -53,6 +31,8 @@ export async function register(req, res) {
     });
 }
 
+
+// ================= LOGIN =================
 export async function login(req, res) {
     const { email, password } = req.body;
 
@@ -66,8 +46,7 @@ export async function login(req, res) {
     if (!user) {
         return res.status(400).json({
             message: "Invalid email/username or password",
-            success: false,
-            err: "User not found"
+            success: false
         });
     }
 
@@ -75,25 +54,21 @@ export async function login(req, res) {
 
     if (!isPasswordMatch) {
         return res.status(400).json({
-            message: "Invalid email or password",
-            success: false,
-            err: "Incorrect password"
-        });
-    }
-
-    if (!user.verified) {
-        return res.status(403).json({
-            message: "Email not verified",
+            message: "Invalid password",
             success: false
         });
     }
 
-    const token = jwt.sign({
-        id: user._id,
-        username: user.username,
-    }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+        {
+            id: user._id,
+            username: user.username,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+    );
 
-    // 🔥🔥 CHANGE 2 (MOST IMPORTANT FIX)
+    // ✅ COOKIE FIX (important for Vercel + Render)
     res.cookie("token", token, {
         httpOnly: true,
         secure: true,
@@ -111,6 +86,8 @@ export async function login(req, res) {
     });
 }
 
+
+// ================= GET ME =================
 export async function getMe(req, res) {
     const userId = req.user.id;
 
@@ -128,41 +105,4 @@ export async function getMe(req, res) {
         success: true,
         user
     });
-}
-
-export async function verifyEmail(req, res) {
-    const { token } = req.query;
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        const user = await userModel.findOne({ email: decoded.email });
-
-        if (!user) {
-            return res.status(400).json({
-                message: "Invalid token",
-                success: false
-            });
-        }
-
-        user.verified = true;
-        await user.save();
-
-        const html = `
-            <h1>Email verified successfully</h1>
-            <p>You can now login</p>
-
-            <!-- 🔥 CHANGE 3 -->
-            <a href="https://perplexity-ai-kappa.vercel.app/login">Go to Login</a>
-        `;
-
-        return res.send(html);
-
-    } catch (err) {
-        return res.status(400).json({
-            message: "Invalid or Expired Token",
-            success: false,
-            err: err.message
-        });
-    }
 }

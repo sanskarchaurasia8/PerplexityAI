@@ -1,6 +1,5 @@
 import { body, validationResult } from "express-validator";
 
-
 export function validate(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -23,7 +22,7 @@ export const registerValidator = [
 
     body("password")
         .notEmpty().withMessage("Password is required")
-        .isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+        .isLength({ min: 6 }).withMessage("Password must be 6 character"),
 
     validate
 ];
