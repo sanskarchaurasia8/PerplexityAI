@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-typing: typing 1.4s infinite ease-in-out;
+  @keyframes typing {
+    0%, 80%, 100% { 
+        transform: scale(0);
+        opacity: 0.3;
+    }
+    40% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+  }
+}
+
+.typing-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 2px;
+    background-color: currentColor;
+    border-radius: 50%;
+    animation: var(--animate-typing);
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
