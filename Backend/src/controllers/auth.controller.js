@@ -2,29 +2,27 @@ import userModel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../services/mail.service.js";
 
-
 export async function register(req, res) {
 
     const { username, email, password } = req.body;
 
     const isUserAlreadyExists = await userModel.findOne({
-        $or: [ { email }, { username } ]
-    })
+        $or: [{ email }, { username }]
+    });
 
     if (isUserAlreadyExists) {
         return res.status(400).json({
             message: "User with this email or username already exists",
             success: false,
             err: "User already exists"
-        })
+        });
     }
 
-    // Save user as unverified by default
-    const user = await userModel.create({ username, email, password, verified: false })
+    const user = await userModel.create({ username, email, password, verified: false });
 
     const emailVerificationToken = jwt.sign({
         email: user.email,
-    }, process.env.JWT_SECRET, { expiresIn: '1d' })
+    }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
     try {
         await sendEmail({
@@ -32,14 +30,16 @@ export async function register(req, res) {
             subject: "Welcome to Perplexity!",
             html: `
                 <p>Hi ${username},</p>
-                <p>Thank you for registering at <strong>Perplexity</strong>. We're excited to have you on board!</p>
-                <p> Please verify your email address by clicking the link blew </p>
-                <a href="http://localhost:3000/api/auth/verify-email?token=${emailVerificationToken}">Verify Email</a>
-                <p>Best regards,<br>The Perplexity Team</p>
-        `
+                <p>Thank you for registering at <strong>Perplexity</strong>.</p>
+                <p>Please verify your email:</p>
+
+                <!-- 🔥 CHANGE 1: localhost → production URL -->
+                <a href="https://perplexityai-3rlb.onrender.com/api/auth/verify-email?token=${emailVerificationToken}">
+                Verify Email</a>
+            `
         });
     } catch (err) {
-        console.warn("Email send failed (non-blocking):", err.message || err);
+        console.warn("Email send failed:", err.message || err);
     }
 
     res.status(201).json({
@@ -51,34 +51,24 @@ export async function register(req, res) {
             email: user.email
         }
     });
-
-
-
 }
 
-/**
- * @desc Login user and return JWT token
- * @route POST /api/auth/login
- * @access Public
- * @body { email, password }
- */
 export async function login(req, res) {
     const { email, password } = req.body;
 
-    // Allow login via email or username for convenience
     const user = await userModel.findOne({
         $or: [
             { email: email?.toLowerCase?.() },
             { username: email }
         ]
-    })
+    });
 
     if (!user) {
         return res.status(400).json({
             message: "Invalid email/username or password",
             success: false,
             err: "User not found"
-        })
+        });
     }
 
     const isPasswordMatch = await user.comparePassword(password);
@@ -88,23 +78,27 @@ export async function login(req, res) {
             message: "Invalid email or password",
             success: false,
             err: "Incorrect password"
-        })
+        });
     }
 
     if (!user.verified) {
         return res.status(403).json({
-            message: "Email not verified. Please verify your email before logging in.",
-            success: false,
-            err: "Email not verified"
-        })
+            message: "Email not verified",
+            success: false
+        });
     }
 
     const token = jwt.sign({
         id: user._id,
         username: user.username,
-    }, process.env.JWT_SECRET, { expiresIn: '7d' })
+    }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.cookie("token", token)
+    // 🔥🔥 CHANGE 2 (MOST IMPORTANT FIX)
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    });
 
     res.status(200).json({
         message: "Login successful",
@@ -114,15 +108,9 @@ export async function login(req, res) {
             username: user.username,
             email: user.email
         }
-    })
-
+    });
 }
 
-/**
- * @desc Get current logged in user's details
- * @route GET /api/auth/get-me
- * @access Private
- */
 export async function getMe(req, res) {
     const userId = req.user.id;
 
@@ -131,64 +119,50 @@ export async function getMe(req, res) {
     if (!user) {
         return res.status(404).json({
             message: "User not found",
-            success: false,
-            err: "User not found"
-        })
+            success: false
+        });
     }
 
     res.status(200).json({
         message: "User details fetched successfully",
         success: true,
         user
-    })
+    });
 }
 
+export async function verifyEmail(req, res) {
+    const { token } = req.query;
 
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-/**
- * @desc Verify user's email address
- * @route GET /api/auth/verify-email
- * @access Public
- * @query { token }
- */
-export async function verifyEmail(req,res){
-    const {token} = req.query;
+        const user = await userModel.findOne({ email: decoded.email });
 
-    try{
+        if (!user) {
+            return res.status(400).json({
+                message: "Invalid token",
+                success: false
+            });
+        }
 
-        
-        const decoded = jwt.verify(token , process.env.JWT_SECRET)
-    
-    const user = await userModel.findOne({email: decoded.email});
+        user.verified = true;
+        await user.save();
 
-    if(!user){
-        return res.status(400).json({
-            message: "Invalid token",
-            success: false,
-            err: "User not found"
-        })
-    }
+        const html = `
+            <h1>Email verified successfully</h1>
+            <p>You can now login</p>
 
-    user.verified =  true;
+            <!-- 🔥 CHANGE 3 -->
+            <a href="https://perplexity-ai-kappa.vercel.app/login">Go to Login</a>
+        `;
 
-    await user.save();
-
-    const html = 
-    `
-        <h1> Email verified successfully </h1>
-        <p> your email has been verified. you can now log in to your account.</p>
-        <a href="http://localhost:3000/login">Go to Login </a>
-    `
         return res.send(html);
-    }catch(err){
 
+    } catch (err) {
         return res.status(400).json({
             message: "Invalid or Expired Token",
             success: false,
             err: err.message
-        })
-
+        });
     }
-
-
 }
