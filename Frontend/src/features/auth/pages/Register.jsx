@@ -27,7 +27,7 @@ const Register = () => {
     setErrorMessage("");
     try {
       await handleRegister(formData);
-      setSuccessMessage("Registration successful! Please verify your email and then login.");
+      setSuccessMessage("Registration successful! Redirecting to login...");
       setTimeout(() => navigate("/login"), 1800);
     } catch (error) {
       const msg = error.response?.data?.message || "Registration failed";
